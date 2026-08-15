@@ -1,6 +1,4 @@
-import { Innertube, UniversalCache } from 'youtubei.js';
-
-let yt;
+import ytdl from '@distube/ytdl-core';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,41 +9,18 @@ export default async function handler(req, res) {
   if (!id) return res.status(400).json({ error: 'Missing video id' });
 
   try {
-    if (!yt) {
-      yt = await Innertube.create({
-        cache: new UniversalCache(false),
-        generate_session_locally: true,
-      });
+    const videoUrl = `https://www.youtube.com/watch?v=${id}`;
+    const info = await ytdl.getInfo(videoUrl);
+
+    const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
+    const bestAudio = audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
+
+    if (!bestAudio || !bestAudio.url) {
+      return res.status(404).json({ error: 'Audio stream not found' });
     }
 
-    // Передаем клиент строкой 'ANDROID'
-    const info = await yt.getInfo(id, 'ANDROID');
-    const format = info.chooseFormat({ type: 'audio', quality: 'best' });
-    const streamUrl = format ? format.decipher(yt.session.player) : null;
-
-    if (streamUrl) {
-      return res.status(200).json({ url: streamUrl });
-    }
-
-    // Резервный вызов через базовый info
-    const basic = await yt.getBasicInfo(id, 'TV_EMBEDDED');
-    const basicFormat = basic.chooseFormat({ type: 'audio', quality: 'best' });
-    const basicUrl = basicFormat ? basicFormat.decipher(yt.session.player) : null;
-
-    if (basicUrl) {
-      return res.status(200).json({ url: basicUrl });
-    }
-
-    return res.status(404).json({ error: 'Audio stream not found' });
+    return res.status(200).json({ url: bestAudio.url });
   } catch (err) {
-    try {
-      const basic = await yt.getBasicInfo(id);
-      const basicFormat = basic.chooseFormat({ type: 'audio', quality: 'best' });
-      const basicUrl = basicFormat ? basicFormat.decipher(yt.session.player) : null;
-      if (basicUrl) return res.status(200).json({ url: basicUrl });
-    } catch {
-      // Игнорируем фоллбек
-    }
     return res.status(500).json({ error: err.message });
   }
 }

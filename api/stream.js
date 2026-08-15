@@ -18,16 +18,34 @@ export default async function handler(req, res) {
       });
     }
 
-    const info = await yt.music.getInfo(id);
+    // Запрос через мобильный клиент Android (не блокируется датацентрами)
+    const info = await yt.getInfo(id, { client: 'ANDROID' });
     const format = info.chooseFormat({ type: 'audio', quality: 'best' });
     const streamUrl = format ? format.decipher(yt.session.player) : null;
 
-    if (!streamUrl) {
-      return res.status(404).json({ error: 'Audio stream not found' });
+    if (streamUrl) {
+      return res.status(200).json({ url: streamUrl });
     }
 
-    return res.status(200).json({ url: streamUrl });
+    // Резервный вызов через getBasicInfo
+    const basic = await yt.getBasicInfo(id);
+    const basicFormat = basic.chooseFormat({ type: 'audio', quality: 'best' });
+    const basicUrl = basicFormat ? basicFormat.decipher(yt.session.player) : null;
+
+    if (basicUrl) {
+      return res.status(200).json({ url: basicUrl });
+    }
+
+    return res.status(404).json({ error: 'Audio stream not found' });
   } catch (err) {
+    try {
+      const basic = await yt.getBasicInfo(id);
+      const basicFormat = basic.chooseFormat({ type: 'audio', quality: 'best' });
+      const basicUrl = basicFormat ? basicFormat.decipher(yt.session.player) : null;
+      if (basicUrl) return res.status(200).json({ url: basicUrl });
+    } catch (fallbackErr) {
+      // Игнорируем и возвращаем исходную ошибку
+    }
     return res.status(500).json({ error: err.message });
   }
 }

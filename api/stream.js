@@ -18,8 +18,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Запрос через мобильный клиент Android (не блокируется датацентрами)
-    const info = await yt.getInfo(id, { client: 'ANDROID' });
+    // Передаем клиент строкой 'ANDROID'
+    const info = await yt.getInfo(id, 'ANDROID');
     const format = info.chooseFormat({ type: 'audio', quality: 'best' });
     const streamUrl = format ? format.decipher(yt.session.player) : null;
 
@@ -27,8 +27,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ url: streamUrl });
     }
 
-    // Резервный вызов через getBasicInfo
-    const basic = await yt.getBasicInfo(id);
+    // Резервный вызов через базовый info
+    const basic = await yt.getBasicInfo(id, 'TV_EMBEDDED');
     const basicFormat = basic.chooseFormat({ type: 'audio', quality: 'best' });
     const basicUrl = basicFormat ? basicFormat.decipher(yt.session.player) : null;
 
@@ -43,8 +43,8 @@ export default async function handler(req, res) {
       const basicFormat = basic.chooseFormat({ type: 'audio', quality: 'best' });
       const basicUrl = basicFormat ? basicFormat.decipher(yt.session.player) : null;
       if (basicUrl) return res.status(200).json({ url: basicUrl });
-    } catch (fallbackErr) {
-      // Игнорируем и возвращаем исходную ошибку
+    } catch {
+      // Игнорируем фоллбек
     }
     return res.status(500).json({ error: err.message });
   }
